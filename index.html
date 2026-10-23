@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Mis ventas</title>
+<style>
+:root{--bg:#f5f6f4;--card:#fff;--tx:#1b1f1d;--mut:#667;--ac:#1f6f5c;--bd:#dde1de;--dg:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121513;--card:#1c211e;--tx:#eef1ef;--mut:#9aa7a0;--ac:#3fb496;--bd:#2d3531;--dg:#f2b8b5}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:80px}
+h1{font-size:20px;margin:16px 16px 8px}
+.tabs{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs button{flex:1;padding:14px 4px;border:0;background:none;color:var(--mut);font-size:15px;font-weight:600}
+.tabs button.on{color:var(--ac);box-shadow:inset 0 3px 0 var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;margin:10px 12px;padding:12px}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
+input,select{width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font-size:16px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.btn{width:100%;padding:13px;border:0;border-radius:10px;background:var(--ac);color:#fff;font-size:16px;font-weight:700;margin-top:12px}
+.btn.s{background:none;border:1px solid var(--bd);color:var(--tx);width:auto;padding:8px 12px;margin:0;font-size:14px;font-weight:600}
+.btn.wa{background:#25a244}
+.x{background:none;border:0;color:var(--dg);font-size:20px;padding:4px 8px}
+.item{display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--bd)}
+.item:first-child{border-top:0}.item .m{flex:1;min-width:0}
+.item small{color:var(--mut);display:block}
+.tot{display:flex;justify-content:space-between;padding:3px 0}
+.tot b{font-variant-numeric:tabular-nums}
+.hide{display:none}
+input[type=checkbox]{width:22px;height:22px;flex:none}
+pre{white-space:pre-wrap;font:14px/1.4 inherit;background:var(--bg);border-radius:8px;padding:10px;margin:8px 0 0}
+</style>
+</head>
+<body>
+<h1 id="ttl">Ventas</h1>
+
+<section id="t-ventas">
+  <div class="card">
+    <label>Comprador</label><input id="buyer" placeholder="Nombre y apellido">
+    <label>Curso / ebook</label><select id="course"></select>
+    <div class="row">
+      <div><label>Moneda</label><select id="cur"><option value="ARS">Pesos (ARS)</option><option value="USD">Dólares (USD)</option></select></div>
+      <div><label>Monto pagado</label><input id="amt" type="number" inputmode="decimal" placeholder="0"></div>
+    </div>
+    <label>Fecha</label><input id="date" type="date">
+    <label>Forma de pago</label><select id="pay"><option>1 pago</option><option>Cuota 1/2</option><option>Cuota 2/2</option></select>
+    <div id="prev" style="margin-top:8px;color:var(--mut);font-size:14px"></div>
+    <button class="btn" id="add">Guardar venta</button>
+  </div>
+  <div class="card" id="list"></div>
+</section>
+
+<section id="t-cursos" class="hide">
+  <div class="card" id="clist"></div>
+  <div class="card">
+    <b>Agregar curso o ebook</b>
+    <label>Nombre</label><input id="cn" placeholder="Ej: Curso de repostería">
+    <div class="row">
+      <div><label>Valor ARS</label><input id="cars" type="number" inputmode="decimal"></div>
+      <div><label>Valor USD</label><input id="cusd" type="number" inputmode="decimal"></div>
+    </div>
+    <button class="btn" id="cadd">Agregar</button>
+  </div>
+</section>
+
+<section id="t-resumen" class="hide">
+  <div class="card">
+    <div class="row" style="align-items:center">
+      <button class="btn s" id="all">Todas</button>
+      <button class="btn s" id="none">Ninguna</button>
+    </div>
+    <div id="rlist" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <div id="sums"></div>
+    <pre id="msg"></pre>
+    <button class="btn wa" id="send">Enviar resumen por WhatsApp</button>
+  </div>
+</section>
+
+<nav class="tabs">
+  <button data-t="ventas" class="on">Ventas</button>
+  <button data-t="cursos">Cursos</button>
+  <button data-t="resumen">Resumen</button>
+</nav>
+
+<script>
+(function(){
+var KEY="ventas-cursos-v1",S={courses:[],sales:[],sel:{}};
+function load(){try{var r=localStorage.getItem(KEY);if(r){var d=JSON.parse(r);S.courses=d.courses||[];S.sales=d.sales||[];S.sel=d.sel||{};}}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function money(n,c){return (c==="USD"?"USD ":"$ ")+Number(n).toLocaleString("es-AR",{minimumFractionDigits:0,maximumFractionDigits:2})}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function fdate(d){var p=(d||"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:""}
+function pl(s){return s.pay||"1 pago"}
+$("date").value=new Date().toISOString().slice(0,10);
+
+// Tabs
+var titles={ventas:"Ventas",cursos:"Cursos",resumen:"Enviar resumen"};
+document.querySelectorAll(".tabs button").forEach(function(b){b.onclick=function(){
+  document.querySelectorAll(".tabs button").forEach(function(x){x.classList.toggle("on",x===b)});
+  ["ventas","cursos","resumen"].forEach(function(t){$("t-"+t).classList.toggle("hide",t!==b.dataset.t)});
+  $("ttl").textContent=titles[b.dataset.t];render();window.scrollTo(0,0);
+}});
+
+// Cursos
+function renderCourses(){
+  var h="";
+  S.courses.forEach(function(c){
+    h+='<div class="item"><div class="m"><input data-id="'+c.id+'" data-f="name" value="'+esc(c.name)+'">'
+     +'<div class="row" style="margin-top:6px"><input data-id="'+c.id+'" data-f="ars" type="number" inputmode="decimal" value="'+(c.ars||"")+'" placeholder="ARS">'
+     +'<input data-id="'+c.id+'" data-f="usd" type="number" inputmode="decimal" value="'+(c.usd||"")+'" placeholder="USD"></div></div>'
+     +'<button class="x" data-del="'+c.id+'">✕</button></div>';
+  });
+  $("clist").innerHTML=h||'<span style="color:var(--mut)">Todavía no cargaste cursos. Agregá el primero abajo.</span>';
+  var sel=$("course"),cur=sel.value;
+  sel.innerHTML=S.courses.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+'</option>'}).join("")||'<option value="">(cargá un curso primero)</option>';
+  if(cur)sel.value=cur;
+}
+$("clist").addEventListener("input",function(e){
+  var t=e.target,c=S.courses.find(function(x){return x.id===t.dataset.id});if(!c)return;
+  c[t.dataset.f]=t.dataset.f==="name"?t.value:parseFloat(t.value)||0;save();
+});
+$("clist").addEventListener("change",function(){renderCourses();autofill();});
+$("clist").addEventListener("click",function(e){
+  var id=e.target.dataset.del;if(!id)return;
+  if(confirm("¿Eliminar este curso? Las ventas ya registradas se mantienen.")){S.courses=S.courses.filter(function(c){return c.id!==id});save();render();}
+});
+$("cadd").onclick=function(){
+  var n=$("cn").value.trim();if(!n){alert("Escribí el nombre");return}
+  S.courses.push({id:uid(),name:n,ars:parseFloat($("cars").value)||0,usd:parseFloat($("cusd").value)||0});
+  $("cn").value=$("cars").value=$("cusd").value="";save();render();
+};
+
+// Ventas
+function autofill(){
+  var c=S.courses.find(function(x){return x.id===$("course").value});
+  if(c){var v=$("cur").value==="USD"?c.usd:c.ars;$("amt").value=v?($("pay").value==="1 pago"?v:v/2):"";}
+  preview();
+}
+function preview(){
+  var a=parseFloat($("amt").value)||0;
+  $("prev").textContent=a?"Tu 10%: "+money(a*0.1,$("cur").value):"";
+}
+$("course").onchange=autofill;$("cur").onchange=autofill;$("pay").onchange=autofill;$("amt").oninput=preview;
+$("add").onclick=function(){
+  var c=S.courses.find(function(x){return x.id===$("course").value}),b=$("buyer").value.trim(),a=parseFloat($("amt").value);
+  if(!b||!c||!a){alert("Completá comprador, curso y monto");return}
+  var s={id:uid(),buyer:b,course:c.name,cur:$("cur").value,amt:a,date:$("date").value,pay:$("pay").value};
+  S.sales.unshift(s);S.sel[s.id]=true;$("buyer").value="";save();render();
+};
+function renderSales(){
+  var h="";
+  S.sales.forEach(function(s){
+    h+='<div class="item"><div class="m"><b>'+esc(s.buyer)+'</b><small>'+esc(s.course)+' · '+fdate(s.date)+' · '+pl(s)+'</small></div>'
+     +'<div style="text-align:right"><b>'+money(s.amt,s.cur)+'</b><small>10%: '+money(s.amt*0.1,s.cur)+'</small></div>'
+     +'<button class="x" data-del="'+s.id+'">✕</button></div>';
+  });
+  $("list").innerHTML=h||'<span style="color:var(--mut)">Todavía no hay ventas registradas.</span>';
+}
+$("list").addEventListener("click",function(e){
+  var id=e.target.dataset.del;if(!id)return;
+  if(confirm("¿Eliminar esta venta?")){S.sales=S.sales.filter(function(s){return s.id!==id});delete S.sel[id];save();render();}
+});
+
+// Resumen
+function chosen(){return S.sales.filter(function(s){return S.sel[s.id]})}
+function renderSummary(){
+  var h="";
+  S.sales.forEach(function(s){
+    h+='<label class="item" style="margin:0;color:inherit;font-size:16px"><input type="checkbox" data-id="'+s.id+'"'+(S.sel[s.id]?" checked":"")+'>'
+     +'<div class="m"><b>'+esc(s.buyer)+'</b><small>'+esc(s.course)+' · '+fdate(s.date)+' · '+pl(s)+'</small></div><b>'+money(s.amt,s.cur)+'</b></label>';
+  });
+  $("rlist").innerHTML=h||'<span style="color:var(--mut)">No hay ventas para resumir.</span>';
+  var ch=chosen(),T={ARS:0,USD:0};ch.forEach(function(s){T[s.cur]+=s.amt});
+  var sh="<b>"+ch.length+" venta(s) seleccionada(s)</b>";
+  ["ARS","USD"].forEach(function(c){if(T[c])sh+='<div class="tot"><span>Total '+c+'</span><b>'+money(T[c],c)+'</b></div><div class="tot"><span>10% '+c+'</span><b>'+money(T[c]*0.1,c)+'</b></div>'});
+  $("sums").innerHTML=sh;
+  var m="*Resumen de ventas*\n";
+  ch.forEach(function(s){m+="\n• "+fdate(s.date)+" - "+s.buyer+" - "+s.course+" - "+pl(s)+" - "+money(s.amt,s.cur)});
+  if(ch.length){m+="\n";["ARS","USD"].forEach(function(c){if(T[c])m+="\n*Total "+c+":* "+money(T[c],c)})}
+  else m="Seleccioná al menos una venta.";
+  $("msg").textContent=m;
+}
+$("rlist").addEventListener("change",function(e){var id=e.target.dataset.id;if(id){S.sel[id]=e.target.checked;save();renderSummary();}});
+$("all").onclick=function(){S.sales.forEach(function(s){S.sel[s.id]=true});save();renderSummary()};
+$("none").onclick=function(){S.sel={};save();renderSummary()};
+$("send").onclick=function(){
+  if(!chosen().length){alert("Seleccioná al menos una venta");return}
+  window.open("https://wa.me/?text="+encodeURIComponent($("msg").textContent),"_blank");
+};
+
+function render(){renderCourses();renderSales();renderSummary();preview();}
+load();render();
+})();
+</script>
+<script>
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(function(){});}
+</script>
+</body>
+</html>
