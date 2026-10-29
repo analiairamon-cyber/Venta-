@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1f6f5c">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Mis ventas</title>
 <style>
 :root{--bg:#f5f6f4;--card:#fff;--tx:#1b1f1d;--mut:#667;--ac:#1f6f5c;--bd:#dde1de;--dg:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -48,6 +48,8 @@ pre{white-space:pre-wrap;font:14px/1.4 inherit;background:var(--bg);border-radiu
     </div>
     <label>Fecha</label><input id="date" type="date">
     <label>Forma de pago</label><select id="pay"><option>1 pago</option><option>Cuota 1/2</option><option>Cuota 2/2</option></select>
+    <label>Mi comisión</label>
+    <div class="row"><select id="ctype"><option value="pct">10% de la venta</option><option value="fix">Monto fijo en pesos</option></select><input id="cfix" type="number" inputmode="decimal" placeholder="Monto" class="hide"></div>
     <div id="prev" style="margin-top:8px;color:var(--mut);font-size:14px"></div>
     <button class="btn" id="add">Guardar venta</button>
   </div>
@@ -99,6 +101,7 @@ function money(n,c){return (c==="USD"?"USD ":"$ ")+Number(n).toLocaleString("es-
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function fdate(d){var p=(d||"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:""}
 function pl(s){return s.pay||"1 pago"}
+function cm(s){return s.com!=null?s.com:(s.cur==="ARS"?s.amt*0.1:0)}
 $("date").value=new Date().toISOString().slice(0,10);
 
 // Tabs
@@ -146,20 +149,20 @@ function autofill(){
 }
 function preview(){
   var a=parseFloat($("amt").value)||0;
-  $("prev").textContent=a?"Tu 10%: "+money(a*0.1,$("cur").value):"";
+  var us=$("cur").value==="USD";if(us)$("ctype").value="fix";$("ctype").disabled=us;var fx=$("ctype").value==="fix";$("cfix").classList.toggle("hide",!fx);$("cfix").placeholder="Comisión en pesos (ARS)";var cv=fx?(parseFloat($("cfix").value)||0):a*0.1;$("prev").textContent=(a||fx)?"Tu comisión: "+money(cv,"ARS"):"";
 }
-$("course").onchange=autofill;$("cur").onchange=autofill;$("pay").onchange=autofill;$("amt").oninput=preview;
+$("course").onchange=autofill;$("cur").onchange=autofill;$("pay").onchange=autofill;$("amt").oninput=preview;$("ctype").onchange=preview;$("cfix").oninput=preview;
 $("add").onclick=function(){
   var c=S.courses.find(function(x){return x.id===$("course").value}),b=$("buyer").value.trim(),a=parseFloat($("amt").value);
   if(!b||!c||!a){alert("Completá comprador, curso y monto");return}
-  var s={id:uid(),buyer:b,course:c.name,cur:$("cur").value,amt:a,date:$("date").value,pay:$("pay").value};
-  S.sales.unshift(s);S.sel[s.id]=true;$("buyer").value="";save();render();
+  var s={id:uid(),buyer:b,course:c.name,cur:$("cur").value,amt:a,date:$("date").value,pay:$("pay").value,com:($("ctype").value==="fix"?(parseFloat($("cfix").value)||0):null)};
+  S.sales.unshift(s);S.sel[s.id]=true;$("buyer").value="";$("ctype").value="pct";$("cfix").value="";save();render();
 };
 function renderSales(){
   var h="";
   S.sales.forEach(function(s){
     h+='<div class="item"><div class="m"><b>'+esc(s.buyer)+'</b><small>'+esc(s.course)+' · '+fdate(s.date)+' · '+pl(s)+'</small></div>'
-     +'<div style="text-align:right"><b>'+money(s.amt,s.cur)+'</b><small>10%: '+money(s.amt*0.1,s.cur)+'</small></div>'
+     +'<div style="text-align:right"><b>'+money(s.amt,s.cur)+'</b><small>Comisión: '+money(cm(s),"ARS")+'</small></div>'
      +'<button class="x" data-del="'+s.id+'">✕</button></div>';
   });
   $("list").innerHTML=h||'<span style="color:var(--mut)">Todavía no hay ventas registradas.</span>';
@@ -178,13 +181,13 @@ function renderSummary(){
      +'<div class="m"><b>'+esc(s.buyer)+'</b><small>'+esc(s.course)+' · '+fdate(s.date)+' · '+pl(s)+'</small></div><b>'+money(s.amt,s.cur)+'</b></label>';
   });
   $("rlist").innerHTML=h||'<span style="color:var(--mut)">No hay ventas para resumir.</span>';
-  var ch=chosen(),T={ARS:0,USD:0};ch.forEach(function(s){T[s.cur]+=s.amt});
+  var ch=chosen(),T={ARS:0,USD:0},K=0;ch.forEach(function(s){T[s.cur]+=s.amt;K+=cm(s)});
   var sh="<b>"+ch.length+" venta(s) seleccionada(s)</b>";
-  ["ARS","USD"].forEach(function(c){if(T[c])sh+='<div class="tot"><span>Total '+c+'</span><b>'+money(T[c],c)+'</b></div><div class="tot"><span>10% '+c+'</span><b>'+money(T[c]*0.1,c)+'</b></div>'});
+  ["ARS","USD"].forEach(function(c){if(T[c])sh+='<div class="tot"><span>Total '+c+'</span><b>'+money(T[c],c)+'</b></div>'});if(ch.length)sh+='<div class="tot"><span>Mi comisión (ARS)</span><b>'+money(K,"ARS")+'</b></div>';
   $("sums").innerHTML=sh;
   var m="*Resumen de ventas*\n";
-  ch.forEach(function(s){m+="\n• "+fdate(s.date)+" - "+s.buyer+" - "+s.course+" - "+pl(s)+" - "+money(s.amt,s.cur)});
-  if(ch.length){m+="\n";["ARS","USD"].forEach(function(c){if(T[c])m+="\n*Total "+c+":* "+money(T[c],c)})}
+  ch.forEach(function(s){m+="\n• "+fdate(s.date)+" - "+s.buyer+" - "+s.course+" - "+pl(s)+" - "+money(s.amt,s.cur)+" - *Comisión: "+money(cm(s),"ARS")+"*"});
+  if(ch.length){m+="\n";["ARS","USD"].forEach(function(c){if(T[c])m+="\n*Total "+c+": "+money(T[c],c)+"*"});m+="\n*Comisión ARS: "+money(K,"ARS")+"*"}
   else m="Seleccioná al menos una venta.";
   $("msg").textContent=m;
 }
@@ -198,10 +201,8 @@ $("send").onclick=function(){
 
 function render(){renderCourses();renderSales();renderSummary();preview();}
 load();render();
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}
 })();
-</script>
-<script>
-if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(function(){});}
 </script>
 </body>
 </html>
